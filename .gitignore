@@ -1,0 +1,19 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Downloaded source data — re-fetched by load_taxi.py, too large to track
+*.parquet
+
+# dbt
+logs/
+target/
+dbt_packages/
+
+# Local tooling
+**/.claude/settings.local.json
+
+# Credentials
+.env
+*-service-account.json

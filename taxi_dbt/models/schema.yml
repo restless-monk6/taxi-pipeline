@@ -1,0 +1,14 @@
+version: 2
+
+models:
+  - name: stg_yellow_tripdata
+    description: "Cleaned yellow taxi trips: renamed columns, negative fares and distances filtered out."
+
+  - name: daily_trip_metrics
+    description: "One row per day with trip counts, average distance, average fare, and total revenue."
+    columns:
+      - name: trip_date
+        description: "The calendar date the trips occurred on."
+        tests:
+          - not_null
+          - unique
