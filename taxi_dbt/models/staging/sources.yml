@@ -6,4 +6,14 @@ sources:
     schema: taxi_raw
     tables:
       - name: yellow_tripdata
-        description: "Yellow taxi trips as downloaded from NYC TLC, one file per month."
+        description: "Yellow taxi trips downloaded from NYC TLC."
+        columns:
+          - name: tpep_pickup_datetime
+            tests:
+              - not_null
+          - name: tpep_dropoff_datetime
+            tests:
+              - not_null
+          - name: total_amount
+            tests:
+              - not_null

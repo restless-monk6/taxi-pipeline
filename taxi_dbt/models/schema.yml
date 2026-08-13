@@ -3,6 +3,18 @@ version: 2
 models:
   - name: stg_yellow_tripdata
     description: "Cleaned yellow taxi trips: renamed columns, negative fares and distances filtered out."
+    columns:
+      - name: pickup_at
+        tests:
+          - not_null
+      - name: fare_amount
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: trip_distance
+        tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
 
   - name: daily_trip_metrics
     description: "One row per day with trip counts, average distance, average fare, and total revenue."
