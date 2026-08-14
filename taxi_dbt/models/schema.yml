@@ -14,7 +14,8 @@ models:
       - name: trip_distance
         tests:
           - dbt_utils.accepted_range:
-              min_value: 0
+              arguments:
+                min_value: 0
 
   - name: daily_trip_metrics
     description: "One row per day with trip counts, average distance, average fare, and total revenue."
