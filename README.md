@@ -1,30 +1,34 @@
 # NYC Taxi Pipeline
 
 An ELT pipeline that pulls NYC TLC yellow taxi trip data into BigQuery and models it
-with dbt.
+with dbt. Currently holds the full year 2024 (~40M trips) in a partitioned raw table,
+with a validation suite guarding both the raw and cleaned layers.
 
 ```
-TLC public parquet  ──load_taxi.py──▶  taxi_raw.yellow_tripdata   (raw landing table)
-                                              │
-                                              ▼  dbt
-                                       stg_yellow_tripdata        (view — cleaned)
-                                              │
-                                              ▼
-                                       daily_trip_metrics         (table — one row/day)
+TLC public parquet (12 months)  ──load_taxi.py──▶  taxi_raw.yellow_tripdata
+                                                   (partitioned by pickup day)
+                                                          │
+                                                          ▼  dbt
+                                                   stg_yellow_tripdata    (view — cleaned)
+                                                          │
+                                                          ▼
+                                                   daily_trip_metrics     (table — one row/day)
 ```
 
 ## Layout
 
 | Path | What it is |
 | --- | --- |
-| `load_taxi.py` | Extract + load. Downloads one month of TLC parquet and loads it into BigQuery. |
-| `taxi_dbt/` | The dbt project (profile `taxi_dbt`, models under `taxi_dbt/models/`). |
+| `load_taxi.py` | Extract + load. Downloads each month of 2024 TLC parquet and appends it into BigQuery. Idempotent: already-loaded months and already-downloaded files are skipped, so re-running is always safe. |
+| `taxi_dbt/` | The dbt project (profile `taxi_dbt`). Models are organized by layer: `models/staging/` (views) and `models/marts/` (tables). |
+| `taxi_dbt/tests/` | Singular data tests (SQL that returns bad rows). |
 | `venv/` | Local virtualenv — not tracked. |
 
 ## Prerequisites
 
 - Python 3.12
-- A Google Cloud project with BigQuery enabled. This pipeline targets
+- A Google Cloud project with BigQuery enabled and **billing linked** (without
+  billing, BigQuery sandbox tables expire after 60 days). This pipeline targets
   `taxi-pipeline-503821`.
 - `gcloud` CLI, authenticated for application-default credentials:
 
@@ -41,6 +45,8 @@ TLC public parquet  ──load_taxi.py──▶  taxi_raw.yellow_tripdata   (raw
 python -m venv venv
 .\venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+cd taxi_dbt
+dbt deps          # installs dbt_utils (used by the validation tests)
 ```
 
 dbt reads its connection from `~/.dbt/profiles.yml`. The profile it expects:
@@ -56,7 +62,7 @@ taxi_dbt:
       dataset: taxi
       threads: 4
       location: US
-      maximum_bytes_billed: 10000000000
+      maximum_bytes_billed: 10000000000   # hard cap: any query over 10 GB fails
 ```
 
 Note the two datasets: raw data lands in `taxi_raw`, and dbt builds its models into
@@ -70,40 +76,55 @@ Note the two datasets: raw data lands in `taxi_raw`, and dbt builds its models i
 python load_taxi.py
 ```
 
-This downloads `yellow_tripdata_2024-01.parquet` (~50 MB) into the working directory
-and loads it into `taxi_raw.yellow_tripdata`. The month is set by the `MONTH`
-constant at the top of the script.
-
-The load uses `WRITE_TRUNCATE`, so **each run replaces the whole table** rather than
-appending. Changing `MONTH` and re-running gives you that month *instead of*, not in
-addition to, what was there before.
+Loops over all 12 months of 2024. For each month it checks whether that month is
+already in the warehouse (skips if so), downloads the parquet if it isn't on disk,
+and appends it with `WRITE_APPEND`. The raw table is day-partitioned on
+`tpep_pickup_datetime`, so downstream queries scan only the days they touch.
+BigQuery load jobs are free and don't consume query quota.
 
 **2. Build and test the models.** From `taxi_dbt/`:
 
 ```powershell
-cd taxi_dbt
 dbt run
 dbt test
 ```
 
-`dbt run` builds `stg_yellow_tripdata` as a view and `daily_trip_metrics` as a table.
-`dbt test` asserts `trip_date` in `daily_trip_metrics` is unique and non-null.
+`dbt run` builds the staging view and `daily_trip_metrics` (366 rows — one per day
+of 2024). `dbt test` runs the 9-test validation suite.
 
 ## The models
 
-**`stg_yellow_tripdata`** (view) — the cleaning layer. Renames TLC's mixed-case
-columns to snake_case, selects the subset of columns the marts need, and drops rows
-with a negative `fare_amount` or `trip_distance`.
+**`stg_yellow_tripdata`** (view, `models/staging/`) — the cleaning layer. Renames
+TLC's mixed-case columns to snake_case and filters out garbage the raw files are
+known to contain:
 
-**`daily_trip_metrics`** (table) — one row per calendar pickup date, with
-`total_trips`, `avg_distance`, `avg_fare`, and `total_revenue`. Materialized as a
-table since it's small and gets queried repeatedly.
+- negative `fare_amount` or `trip_distance`
+- pickups outside 2024 (stray rows in the monthly files claim dates years away)
+- trips that end before they start (~1,500 such rows exist in the 2024 data)
 
-## Known limitations
+**`daily_trip_metrics`** (table, `models/marts/`) — one row per calendar pickup
+date, with `total_trips`, `avg_distance`, `avg_fare`, and `total_revenue`.
 
-- **Single month only.** Both the loader's `WRITE_TRUNCATE` and the hardcoded `MONTH`
-  constant mean the warehouse holds exactly one month at a time.
-- **No partitioning or clustering** on the raw table, so every model run scans the
-  full month.
-- **Thin test coverage.** Only `daily_trip_metrics.trip_date` is tested; the staging
-  model has no tests of its own.
+## Validation
+
+Tests live at three layers, so bad data is caught as early as possible:
+
+- **Source tests** (`models/staging/sources.yml`): raw trips must have pickup and
+  dropoff timestamps and a `total_amount`.
+- **Staging tests** (`models/schema.yml`): `pickup_at` not null;
+  `fare_amount` and `trip_distance` within accepted ranges (`dbt_utils`) — proving
+  the cleaning filters work on every run.
+- **Mart tests**: `trip_date` unique and not null.
+- **Singular test** (`tests/assert_dropoff_after_pickup.sql`): no trip may end
+  before it starts.
+
+## Roadmap
+
+- **Airflow** (via Docker Compose): schedule load → run → test, with a weekly check
+  that appends new TLC months as they're published.
+- **Foursquare venue data**: bulk-load FSQ Open Source Places for NYC, join venues
+  to taxi zones for enrichment.
+- **Semantic layer** (MetricFlow): metrics defined once in YAML over the marts.
+- **Vector DB + RAG**: ChromaDB over zone/venue profiles for descriptive questions.
+- **AI agent**: tool-using agent that answers metric questions through the semantic
+  layer and contextual questions through the vector DB.
