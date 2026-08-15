@@ -1,0 +1,11 @@
+taxi_dbt:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: oauth
+      project: taxi-pipeline-503821
+      dataset: taxi
+      threads: 4
+      location: US
+      maximum_bytes_billed: 10000000000
