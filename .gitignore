@@ -21,3 +21,6 @@ dbt_packages/
 # Airflow local state
 airflow/config/
 airflow/.env
+
+# dbt user cookie
+.user.yml
