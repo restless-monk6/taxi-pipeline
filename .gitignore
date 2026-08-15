@@ -25,6 +25,6 @@ airflow/.env
 # dbt user cookie
 .user.yml
 
-#DuckDB
+# Foursquare working data
 nyc_slices/
 release/
