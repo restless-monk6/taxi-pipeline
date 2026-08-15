@@ -24,3 +24,7 @@ airflow/.env
 
 # dbt user cookie
 .user.yml
+
+#DuckDB
+nyc_slices/
+release/

@@ -17,3 +17,7 @@ sources:
           - name: total_amount
             tests:
               - not_null
+      - name: fsq_venues
+        description: "NYC venue snapshot from Foursquare OS Places (open venues only)."
+      - name: zones
+        description: "TLC taxi zone polygons, via BigQuery public data."
