@@ -6,4 +6,4 @@ services:
     environment:
       GOOGLE_APPLICATION_CREDENTIALS: /opt/airflow/gcp/adc.json
       GOOGLE_CLOUD_PROJECT: taxi-pipeline-503821
-      _PIP_ADDITIONAL_REQUIREMENTS: "dbt-bigquery==1.12.0 google-cloud-bigquery==3.43.0"
+      _PIP_ADDITIONAL_REQUIREMENTS: "dbt-bigquery==1.12.0 google-cloud-bigquery==3.43.0 pyarrow"
