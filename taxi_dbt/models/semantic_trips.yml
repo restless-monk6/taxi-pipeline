@@ -1,0 +1,75 @@
+semantic_models:
+  - name: trips
+    description: "One record per yellow taxi trip."
+    model: ref('stg_yellow_tripdata')
+    defaults:
+      agg_time_dimension: pickup_date
+    primary_entity: trip
+    entities:
+      - name: pickup_zone
+        type: foreign
+        expr: pickup_zone_id
+    dimensions:
+      - name: pickup_date
+        type: time
+        expr: date(pickup_at)
+        type_params:
+          time_granularity: day
+      - name: payment_type
+        type: categorical
+    measures:
+      - name: trip_count
+        agg: sum
+        expr: "1"
+      - name: total_fare
+        agg: sum
+        expr: fare_amount
+      - name: total_tips
+        agg: sum
+        expr: tip_amount
+      - name: total_revenue
+        agg: sum
+        expr: total_amount
+      - name: total_distance
+        agg: sum
+        expr: trip_distance
+
+metrics:
+  - name: total_trips
+    description: "Number of taxi trips."
+    type: simple
+    label: "Total trips"
+    type_params:
+      measure: trip_count
+  - name: total_revenue
+    description: "Sum of total_amount across trips."
+    type: simple
+    label: "Total revenue"
+    type_params:
+      measure: total_revenue
+  - name: total_fares
+    description: "Sum of fares across trips."
+    type: simple
+    label: "Total fares"
+    type_params:
+      measure: total_fare
+  - name: total_tip_amount
+    description: "Sum of tips across trips."
+    type: simple
+    label: "Total tips"
+    type_params:
+      measure: total_tips
+  - name: avg_fare
+    description: "Average fare per trip."
+    type: ratio
+    label: "Average fare"
+    type_params:
+      numerator: total_fares
+      denominator: total_trips
+  - name: avg_tip_pct
+    description: "Tips as a share of fares."
+    type: ratio
+    label: "Avg tip %"
+    type_params:
+      numerator: total_tip_amount
+      denominator: total_fares
