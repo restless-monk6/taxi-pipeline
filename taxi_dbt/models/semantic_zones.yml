@@ -1,0 +1,21 @@
+semantic_models:
+  - name: zones
+    description: "Taxi zones enriched with venue counts by category."
+    model: ref('dim_zone_venues')
+    entities:
+      - name: pickup_zone
+        type: primary
+        expr: zone_id
+    dimensions:
+      - name: zone_name
+        type: categorical
+      - name: borough
+        type: categorical
+      - name: nightlife_tier
+        type: categorical
+        expr: >
+          case
+            when bar_venues >= 150 then 'high'
+            when bar_venues >= 50 then 'medium'
+            else 'low'
+          end
