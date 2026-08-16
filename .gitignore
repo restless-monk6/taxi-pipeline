@@ -28,3 +28,6 @@ airflow/.env
 # Foursquare working data
 nyc_slices/
 release/
+
+# Chroma
+chroma/

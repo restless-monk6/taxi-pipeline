@@ -17,6 +17,9 @@ semantic_models:
           time_granularity: day
       - name: payment_type
         type: categorical
+      - name: pickup_hour
+        type: categorical
+        expr: extract(hour from pickup_at)
     measures:
       - name: trip_count
         agg: sum
